@@ -6,15 +6,78 @@ sys.setdefaultencoding('utf-8')
 
 import re
 import json
+from threading import RLock
 from elasticsearch_dsl import Q as ESQ
 from elasticsearch_dsl import A as ESA
 from elasticsearch import Elasticsearch
+
+
+__all__ = ['QuerySyntaxError', 'To']
 
 
 class QuerySyntaxError(Exception):
 
     def __str__(self):
         return 'query syntax error'
+
+
+class LRUCache(object):
+    """
+        cache hot query str then pop last recently used query str avoid parsing again
+    """
+
+    def __init__(self, size=1024):
+        """
+
+        :param size: cache key size
+        """
+        self.size = size
+        self.keys = {}
+        self.ordered = []
+        self.lock = RLock()
+
+    def add(self, key, value):
+        """
+
+        :param key:
+        :param value:
+        :return:
+        """
+        k = id(key)
+        with self.lock:
+            if len(self.keys) > self.size:
+                self.ordered.pop()
+            self.ordered.append(k)
+            self.keys[k] = value
+
+    def get(self, key):
+        """
+
+        :param key:
+        :return:
+        """
+        k = id(key)
+        with self.lock:
+            if k in self.keys:
+                self.ordered.remove(k)
+                self.ordered.append(k)
+                return self.keys[k]
+
+    def __call__(self, parser):
+        """
+
+        :param parser:
+        :return:
+        """
+
+        def wrap(obj, expression):
+            tsl = self.get(expression)
+            if not tsl:
+                tsl = parser(obj, expression)
+                self.add(expression, tsl)
+            return tsl
+
+        return wrap
 
 
 class Regex(object):
@@ -59,7 +122,7 @@ class Match(Query):
         match full text search
     """
     name = 'match'
-    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_\.-][a-zA-Z0-9]*\s*:\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*'
+    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_\.-]*\s*:\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-]*'
     expr = ':'
 
 
@@ -68,7 +131,7 @@ class MatchPhrase(Query):
         match pharse full text search
     """
     name = 'match_phrase'
-    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*\s*:=\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*'
+    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-]*\s*:=\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-]*'
     expr = ':='
 
 
@@ -77,7 +140,7 @@ class Term(Query):
         term search
     """
     name = 'term'
-    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*\s*===\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*'
+    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-]*\s*===\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-]*'
     expr = '==='
 
 
@@ -86,7 +149,7 @@ class Terms(Query):
         terms search
     """
     name = 'terms'
-    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*\s*==\s*\[[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]+(,[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*)*\]'
+    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.\-]*\s*==\s*\[[a-zA-Z0-9]+[a-zA-Z0-9_.\-]*(\s*,\s*[a-zA-Z0-9]+[a-zA-Z0-9_.\-]*)*\]'
 
     @property
     def instance(self):
@@ -101,7 +164,7 @@ class Regexp(Query):
         regexp search
     """
     name = 'regexp'
-    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*\s*~=\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*'
+    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-]*\s*~=\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-]*'
     expr = '~='
 
 
@@ -110,7 +173,7 @@ class Wildcard(Query):
         wildcard search
     """
     name = 'wildcard'
-    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*\s*@=\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*'
+    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-]*\s*@=\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-]*'
     expr = '@='
 
 
@@ -119,7 +182,7 @@ class Prefix(Query):
         prefix search
     """
     name = 'prefix'
-    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*\s*#=\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*'
+    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-]*\s*#=\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-]*'
     expr = '#='
 
 
@@ -141,7 +204,7 @@ class LtRange(RangeRegex):
     """
         range search for lt
     """
-    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*\s*<\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*'
+    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-]*\s*<\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-]*'
     symbol = 'lt'
     expr = '<'
 
@@ -150,7 +213,7 @@ class LteRange(RangeRegex):
     """
         range search for lte
     """
-    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*\s*<=\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*'
+    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-]*\s*<=\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-]*'
     symbol = 'lte'
     expr = '<='
 
@@ -159,7 +222,7 @@ class GtRange(RangeRegex):
     """
         range search for gt
     """
-    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*\s*>\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*'
+    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-]*\s*>\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-]*'
     symbol = 'gt'
     expr = '>'
 
@@ -168,7 +231,7 @@ class GteRange(RangeRegex):
     """
         range search for gte
     """
-    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*\s*>=\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-][a-zA-Z0-9]*'
+    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-]*\s*>=\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-]*'
     symbol = 'gte'
     expr = '>='
 
@@ -447,22 +510,21 @@ class To(object):
     REGEXS = [
         WhiteSpace, Comma, EOF, AP,  # 空格 逗号 等字符
         LcAnd, LcOr, LcNot,  # 复合查询
-        LParenth, RParenth, LBracket, RBracket,  # 圆括号 方括号
         Match, MatchPhrase, Term, Terms,  # 短语查询
         Wildcard, Prefix, Regexp,  # 模糊查询
         GtRange, LtRange, LteRange, GteRange,  # 范围查询
         TermsBucket, Histogram, DateHistogram, Range, IPRange, DateRange,  # 分组
-        Avg, Max, Min, Sum, Count, Stats, Cardinality  # 聚合
+        Avg, Max, Min, Sum, Count, Stats, Cardinality,  # 聚合
+        LParenth, RParenth, LBracket, RBracket,  # 圆括号 方括号
     ]
+    lru = LRUCache()
 
-    def __init__(self, hosts):
+    def __init__(self):
         """
             sketchy es query expression
-        :param hosts:
         """
         self.pos = 0
         self.tokens = []
-        self.hosts = hosts
 
     def lexer(self, expression):
         """
@@ -590,6 +652,7 @@ class To(object):
             return agg
         return agg
 
+    @lru
     def parser(self, expression):
         """
             es language parse entry
@@ -615,22 +678,15 @@ class To(object):
             ret['aggs'].update(aggs.to_dict())
         return ret
 
-    def search(self, index, expression):
+    def search(self, hosts, index, query):
         """
-            call elasticsearch client search method
+            init elasticsearch client
+        :param hosts:
         :param index:
-        :param expression:
+        :param query:
         :return:
         """
-        sl = self.parser(expression)
-        client = Elasticsearch(hosts=self.hosts)
-        return client.search(index=index, body=sl)
-
-
-if __name__ == '__main__':
-    to = To('localhost:9200')
-    tsl = 'status: 500 and method.keyword ~= GET | terms("group_by_domain", field="domain") | avg("response_time_avg", field="response_time")$'
-    print json.dumps(to.parser(tsl), indent=2)
-
-
+        dsl = self.parser(query)
+        client = Elasticsearch(hosts=hosts)
+        return client.search(index, body=dsl)
 
