@@ -21,20 +21,65 @@ class QuerySyntaxError(Exception):
         return 'query syntax error'
 
 
+class LRUPool(object):
+
+    def __init__(self, size):
+        self.size = size
+        self.cache = {}
+        self.lock = RLock()
+        self.ordered = []
+
+    def add(self, k, value):
+        """
+
+        :param k:
+        :param value:
+        :return:
+        """
+        with self.lock:
+            if len(self.cache) > self.size:
+                old = self.ordered.pop()
+                del self.cache[old]
+            self.ordered.append(k)
+            self.cache[k] = value
+
+    def get(self, k):
+        """
+
+        :param k:
+        :return:
+        """
+        with self.lock:
+            if k in self.cache:
+                self.ordered.remove(k)
+                self.ordered.append(k)
+                return self.cache[k]
+
+
 class LRUCache(object):
     """
         cache hot query str then pop last recently used query str avoid parsing again
     """
 
-    def __init__(self, size=1024):
+    def __init__(self, mode, size=1024):
         """
 
+        :param mode: cache groups
         :param size: cache key size
         """
-        self.size = size
-        self.keys = {}
-        self.ordered = []
-        self.lock = RLock()
+        self.mode = mode
+        self.cache = {i: LRUPool(size) for i in range(mode)}
+
+    def get(self, key):
+        """
+
+        :param key:
+        :return:
+        """
+        k = id(key)
+        m = k % self.mode
+        print m
+        return self.cache[m].get(key)
 
     def add(self, key, value):
         """
@@ -44,24 +89,9 @@ class LRUCache(object):
         :return:
         """
         k = id(key)
-        with self.lock:
-            if len(self.keys) > self.size:
-                self.ordered.pop()
-            self.ordered.append(k)
-            self.keys[k] = value
-
-    def get(self, key):
-        """
-
-        :param key:
-        :return:
-        """
-        k = id(key)
-        with self.lock:
-            if k in self.keys:
-                self.ordered.remove(k)
-                self.ordered.append(k)
-                return self.keys[k]
+        m = k % self.mode
+        print m
+        self.cache[m].add(k, value)
 
     def __call__(self, parser):
         """
@@ -517,7 +547,8 @@ class To(object):
         Avg, Max, Min, Sum, Count, Stats, Cardinality,  # 聚合
         LParenth, RParenth, LBracket, RBracket,  # 圆括号 方括号
     ]
-    lru = LRUCache()
+    LruMode = 5
+    lru = LRUCache(LruMode)
 
     def __init__(self):
         """
