@@ -27,7 +27,7 @@ class LRUPool(object):
         self.size = size
         self.cache = {}
         self.lock = RLock()
-        self.ordered = []
+        self.ordered = set()
 
     def add(self, k, value):
         """
@@ -40,7 +40,7 @@ class LRUPool(object):
             if len(self.cache) > self.size:
                 old = self.ordered.pop()
                 del self.cache[old]
-            self.ordered.append(k)
+            self.ordered.add(k)
             self.cache[k] = value
 
     def get(self, k):
@@ -51,8 +51,8 @@ class LRUPool(object):
         """
         with self.lock:
             if k in self.cache:
-                self.ordered.remove(k)
-                self.ordered.append(k)
+                self.ordered.discard(k)
+                self.ordered.add(k)
                 return self.cache[k]
 
 
@@ -78,7 +78,6 @@ class LRUCache(object):
         """
         k = id(key)
         m = k % self.mode
-        print m
         return self.cache[m].get(key)
 
     def add(self, key, value):
@@ -221,13 +220,14 @@ class RangeRegex(Query):
         range regex
     """
     symbol = None
+    name = 'range'
 
     @property
     def instance(self):
         params = self.value.split(self.expr)
         key = str(params[0]).strip()
         value = str(params[1]).strip()
-        return ESQ(self.name, **{key: {self.symbol, value}})
+        return ESQ(self.name, **{key: {self.symbol: value}})
 
 
 class LtRange(RangeRegex):
@@ -547,7 +547,7 @@ class To(object):
         Avg, Max, Min, Sum, Count, Stats, Cardinality,  # 聚合
         LParenth, RParenth, LBracket, RBracket,  # 圆括号 方括号
     ]
-    LruMode = 5
+    LruMode = 1
     lru = LRUCache(LruMode)
 
     def __init__(self):
@@ -683,14 +683,21 @@ class To(object):
             return agg
         return agg
 
+    def reset(self):
+        self.pos = 0
+        self.tokens = []
+
     @lru
     def parser(self, expression):
         """
             es language parse entry
         :return:
         """
+        self.reset()
         ret = {'query': {}, 'aggs': {}}
         # 1. 词法分析
+        if not expression.endswith('$'):
+            expression += '$'
         self.lexer(expression)
         # 2. 查询语法
         query = self.query()
@@ -720,4 +727,3 @@ class To(object):
         dsl = self.parser(query)
         client = Elasticsearch(hosts=hosts)
         return client.search(index, body=dsl)
-

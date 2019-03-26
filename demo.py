@@ -6,18 +6,29 @@ sys.setdefaultencoding('utf-8')
 import json
 from to import To
 
+# kibana
+# doamin.keyword: www.glodon.com
+# domain.keyword: *account.glodon.com
+# domain.keyword: www.glodon.com |
+# logtail
+#
 
+
+# domain.keyword == '*.glodon.com' | [ terms('group_by_method',file="method"),terms(),avg(])
 import time
 # example 1:
 s1 = time.time() * 1000
 to = To()
 tsl = 'status: 500 and method.keyword ~= GET | terms("group_by_domain", field="domain") | avg("response_time_avg", field="response_time")$'
-json.dumps(to.parser(tsl), indent=2)
+print json.dumps(to.parser(tsl), indent=2)
 s2 = time.time() * 1000
 print s2 - s1
+
+
+
 to = To()
 tsl = 'status: 600 and method.keyword ~= GET | terms("group_by_domain", field="domain") | avg("response_time_avg", field="response_time")$'
-json.dumps(to.parser(tsl), indent=2)
+print json.dumps(to.parser(tsl), indent=2)
 s3 = time.time() * 1000
 print s3 - s2
 # to = To()
