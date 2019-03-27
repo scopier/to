@@ -10,6 +10,7 @@ from threading import RLock
 from elasticsearch_dsl import Q as ESQ
 from elasticsearch_dsl import A as ESA
 from elasticsearch import Elasticsearch
+from elasticsearch_dsl.query import Query as Q
 
 
 __all__ = ['QuerySyntaxError', 'To']
@@ -617,6 +618,8 @@ class To(object):
         else:
             self.pos += 1
             q1 = self.queryLcAnd(self.queryExpr())
+            if not isinstance(q1, Q):
+                raise QuerySyntaxError()
             q = q | q1
             return self.queryLcOr(q)
 
@@ -632,6 +635,8 @@ class To(object):
         else:
             self.pos += 1
             q1 = self.queryExpr()
+            if not isinstance(q1, Q):
+                raise QuerySyntaxError()
             q = q & q1
             return self.queryLcAnd(q)
 
@@ -701,8 +706,11 @@ class To(object):
         self.lexer(expression)
         # 2. 查询语法
         query = self.query()
-        if query and isinstance(self.tokens[self.pos], AP):
-            self.pos += 1
+        if query:
+            if isinstance(self.tokens[self.pos], AP):
+                self.pos += 1
+            elif not isinstance(self.tokens[self.pos], EOF):
+                raise QuerySyntaxError()
         # 3. 聚合语法
         aggs = self.aggs()
         if not isinstance(self.tokens[self.pos], EOF):
