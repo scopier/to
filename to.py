@@ -6,6 +6,7 @@ sys.setdefaultencoding('utf-8')
 
 import re
 import json
+import hashlib
 from threading import RLock
 from elasticsearch_dsl import Q as ESQ
 from elasticsearch_dsl import A as ESA
@@ -14,6 +15,10 @@ from elasticsearch_dsl.query import Query as Q
 
 
 __all__ = ['QuerySyntaxError', 'To']
+
+
+def md5(key):
+    return hashlib.md5(key).hexdigest()
 
 
 class QuerySyntaxError(Exception):
@@ -77,7 +82,7 @@ class LRUCache(object):
         :param key:
         :return:
         """
-        k = id(key)
+        k = md5(key)
         m = k % self.mode
         return self.cache[m].get(key)
 
@@ -88,7 +93,7 @@ class LRUCache(object):
         :param value:
         :return:
         """
-        k = id(key)
+        k = md5(key)
         m = k % self.mode
         print m
         self.cache[m].add(k, value)
