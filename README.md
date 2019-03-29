@@ -1,6 +1,12 @@
 ## To
 - #### Description
-#### The repository is a simple, convenient elasticsearch query language for web user, that based on official lib that elasticsearch-dsl and elasticsearch.
+#### The repository is a simple plain es query statement, convenient elasticsearch（es） query language for web user, that based on official lib that elasticsearch-dsl and elasticsearch.
+- #### Feature：
+1. support match query
+2. support match_phrase query
+3. support term query, like prefix, waldcard, regexp query 
+4. support terms query
+5. support aggregations, like terms, histogram, range and so on
 - #### Grammar:
 ```language
 The query language grammar:
