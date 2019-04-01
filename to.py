@@ -6,7 +6,6 @@ sys.setdefaultencoding('utf-8')
 
 import re
 import json
-import hashlib
 from threading import RLock
 from elasticsearch_dsl import Q as ESQ
 from elasticsearch_dsl import A as ESA
@@ -15,10 +14,6 @@ from elasticsearch_dsl.query import Query as Q
 
 
 __all__ = ['QuerySyntaxError', 'To']
-
-
-def md5(key):
-    return hashlib.md5(key).hexdigest()
 
 
 class QuerySyntaxError(Exception):
@@ -82,7 +77,7 @@ class LRUCache(object):
         :param key:
         :return:
         """
-        k = md5(key)
+        k = hash(key)
         m = k % self.mode
         return self.cache[m].get(key)
 
@@ -93,9 +88,8 @@ class LRUCache(object):
         :param value:
         :return:
         """
-        k = md5(key)
+        k = hash(key)
         m = k % self.mode
-        print m
         self.cache[m].add(k, value)
 
     def __call__(self, parser):
@@ -148,7 +142,7 @@ class Query(Regex):
     def instance(self):
         params = self.value.split(self.expr)
         key = str(params[0]).strip()
-        value = str(params[1]).strip()
+        value = str(params[1]).strip(' "')
         return ESQ(self.name, **{key: value})
 
 
@@ -163,10 +157,10 @@ class Match(Query):
 
 class MatchPhrase(Query):
     """
-        match pharse full text search
+        match phrase full text search
     """
     name = 'match_phrase'
-    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-]*\s*:=\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-]*'
+    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-]*\s*:=\s*".*?"'
     expr = ':='
 
 
@@ -190,7 +184,8 @@ class Terms(Query):
     def instance(self):
         params = self.value.split('==')
         key = str(params[0]).strip()
-        value = map(lambda x: x.strip(), str(params[1]).strip('[]').split(','))
+        value = str(params[1]).strip()
+        value = map(lambda x: x.strip(), value.strip('[]').split(','))
         return ESQ(self.name, **{key: value})
 
 
