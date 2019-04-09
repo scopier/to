@@ -295,17 +295,16 @@ class A(object):
             return aggregation chain expression
         :return:
         """
-        current, root = self, self
-        while root:
-            agg = {}
-            children = root.children
-            for child in children:
-                agg[child.name] = child.statement
-            if agg:
-                root.statement['aggs'] = agg
-            current = root
-            root = current.root
-        return {current.name: current.statement}
+        aggs = {}
+        for child in self.children:
+            if isinstance(child, list):
+                for c in child:
+                    aggs.update(c.to_dict())
+            else:
+                aggs.update(child.to_dict())
+        if aggs:
+            self.statement.update({'aggs': aggs})
+        return {self.name: self.statement}
 
     def __or__(self, other):
         """
@@ -313,13 +312,8 @@ class A(object):
         :param other:
         :return:
         """
-        if isinstance(other, list):
-            self.children.extend(other)
-            return self
-        else:
-            self.children.append(other)
-            other.root = self
-            return other
+        self.children.append(other)
+        return self
 
     def __repr__(self):
         return json.dumps(self.to_dict())
