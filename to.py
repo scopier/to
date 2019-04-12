@@ -151,7 +151,7 @@ class Match(Query):
         match full text search
     """
     name = 'match'
-    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_\.-]*\s*:\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-]*'
+    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_\.-]*\s*:\s*"+.+?"+'
     expr = ':'
 
 
@@ -160,7 +160,7 @@ class MatchPhrase(Query):
         match phrase full text search
     """
     name = 'match_phrase'
-    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-]*\s*:=\s*".*?"'
+    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-]*\s*:=\s*"+.+?"+'
     expr = ':='
 
 
@@ -169,7 +169,7 @@ class Term(Query):
         term search
     """
     name = 'term'
-    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-]*\s*===\s*[a-zA-Z0-9]+[a-zA-Z0-9_.-]*'
+    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.-]*\s*===\s*"+.+?"+'
     expr = '==='
 
 
@@ -178,14 +178,14 @@ class Terms(Query):
         terms search
     """
     name = 'terms'
-    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.\-]*\s*==\s*\[[a-zA-Z0-9]+[a-zA-Z0-9_.\-]*(\s*,\s*[a-zA-Z0-9]+[a-zA-Z0-9_.\-]*)*\]'
+    regex = r'[a-zA-Z0-9]+[a-zA-Z0-9_.\-]*\s*==\s*\["+.+?"+]'
 
     @property
     def instance(self):
         params = self.value.split('==')
         key = str(params[0]).strip()
         value = str(params[1]).strip()
-        value = map(lambda x: x.strip(), value.strip('[]').split(','))
+        value = map(lambda x: x.strip(' "'), value.strip('[]').split(','))
         return ESQ(self.name, **{key: value})
 
 
@@ -277,7 +277,6 @@ class A(object):
         self.agg = agg
         self.name = None
         self.statement = None
-        self.root = None
         self.children = []
 
     def __call__(self, name, field, **kwargs):

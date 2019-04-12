@@ -19,8 +19,8 @@ import time
 # example 1:
 s1 = time.time() * 1000
 to = To()
-# tsl = 'http_host := "hello world" | [terms("group_by_domain", field="domain")]'
-# print to.parser(tsl)
+tsl = 'agent == ["java/1.7.0_75, Java/1.7.0_75"]'
+print to.parser(tsl)
 # s2 = time.time() * 1000
 # print s2 - s1
 
@@ -46,8 +46,8 @@ to = To()
 # s6 = time.time() * 1000
 # print s6 - s3
 # to = To()
-tsl = 'status: 500 and method.keyword ~= GET | [terms("group_by_domain", field="domain")| [ terms("group_by_method", field="method"), terms("group_by_only_method", field="method")]]$'
-print json.dumps(to.parser(tsl), indent=2)
+# tsl = 'status: 500 and method.keyword ~= GET | [terms("group_by_domain", field="domain")| [ terms("group_by_method", field="method"), terms("group_by_only_method", field="method")]]$'
+# print json.dumps(to.parser(tsl), indent=2)
 # s7 = time.time() * 1000
 # print s7 - s2
 #
